@@ -1,0 +1,48 @@
+[project]
+name = "shopper-behaviour-pipeline"
+version = "0.1.0"
+description = "Real-time behavioural analytics on a replayed clickstream: streaming and batch over the same events."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11,<3.12"
+dependencies = []
+
+# One group per component, so running one part never installs another's dependencies.
+# Later tickets add packages to their component's group.
+[dependency-groups]
+replayer = []
+beam = []
+dbt = []
+dev = ["pytest>=8.3", "ruff>=0.8"]
+
+[tool.uv]
+package = false
+default-groups = ["dev"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes: unused imports and names
+    "I",   # import sorting and grouping
+    "B",   # bugbear, including B006 mutable defaults
+    "A",   # shadowed builtins
+    "UP",  # pyupgrade
+    "SIM", # simplifications
+    "C4",  # comprehensions
+    "ERA", # commented-out code
+    "BLE", # blind except
+    "PL",  # pylint subset
+    "RUF",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLR2004"]  # literal expected values are fine in tests
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "--strict-markers"
