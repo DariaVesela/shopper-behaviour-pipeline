@@ -67,6 +67,18 @@ def test_invalid_value_is_rejected_naming_the_field(field: str, value: object) -
     assert str(excinfo.value) == f"invalid event: field {field!r} has invalid value {value!r}"
 
 
+def test_unknown_field_is_rejected_naming_the_field() -> None:
+    """A misspelt field must not pass as an event without that field."""
+    event = valid_event()
+    event["brnad"] = event.pop("brand")
+
+    with pytest.raises(InvalidEventError) as excinfo:
+        validate_event(event)
+
+    assert excinfo.value.field == "brnad"
+    assert str(excinfo.value) == "invalid event: unknown field 'brnad'"
+
+
 @pytest.mark.parametrize(
     "field", ["category_id", "category_code", "brand", "price", "user_session"]
 )

@@ -34,11 +34,20 @@ def _parsed_event_schema() -> dict[str, Any]:
     return parse_schema(load_event_schema())
 
 
+@cache
+def _event_field_names() -> frozenset[str]:
+    return frozenset(field["name"] for field in load_event_schema()["fields"])
+
+
 def validate_event(event: Mapping[str, Any]) -> None:
     """Check `event` against the event schema; raise InvalidEventError naming the bad field.
 
-    Only the first bad field is reported. Fields not in the schema are ignored.
+    Only the first bad field is reported. Fields not in the schema are rejected (and checked
+    first), so a misspelt field is named as such rather than passing or showing as missing.
     """
+    unknown = sorted(event.keys() - _event_field_names())
+    if unknown:
+        raise InvalidEventError(unknown[0], f"unknown field {unknown[0]!r}")
     try:
         validate(event, _parsed_event_schema(), raise_errors=True)
     except ValidationError as error:
