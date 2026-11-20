@@ -5,7 +5,9 @@ description = "Real-time behavioural analytics on a replayed clickstream: stream
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11,<3.12"
-dependencies = []
+dependencies = [
+    "fastavro>=1.13.1",
+]
 
 # One group per component, so running one part never installs another's dependencies.
 # Later tickets add packages to their component's group.
