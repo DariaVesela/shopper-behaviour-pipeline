@@ -51,10 +51,41 @@ def test_another_process_computes_the_same_id() -> None:
     result = subprocess.run(
         [sys.executable, "-c", code],
         cwd=repo_root,
-        env={**os.environ, "PYTHONHASHSEED": "random"},
+        # PYTHONPATH, not cwd, finds the repo, so this also works with PYTHONSAFEPATH set.
+        env={
+            **os.environ,
+            "PYTHONHASHSEED": "random",
+            "PYTHONSAFEPATH": "1",
+            "PYTHONPATH": str(repo_root),
+        },
         capture_output=True,
         text=True,
         check=True,
     )
 
     assert result.stdout.strip() == event_id("2019-Oct.csv", 1)
+
+
+@pytest.mark.parametrize(
+    ("line_number", "error"),
+    [
+        pytest.param(0, ValueError, id="zero"),
+        pytest.param(-1, ValueError, id="negative"),
+        pytest.param(True, TypeError, id="bool"),
+        pytest.param(1.0, TypeError, id="float"),
+        pytest.param("1", TypeError, id="str"),
+    ],
+)
+def test_a_line_number_that_is_not_a_positive_int_is_rejected(
+    line_number: object, error: type[Exception]
+) -> None:
+    """1.0 or True would otherwise give a different ID from 1 for the same event."""
+    with pytest.raises(error):
+        event_id("2019-Oct.csv", line_number)
+
+
+@pytest.mark.parametrize("source_file", ["", ".", "data/.."])
+def test_a_source_file_without_a_name_is_rejected(source_file: str) -> None:
+    """Otherwise line 1 of every file would share one ID."""
+    with pytest.raises(ValueError, match="no file name"):
+        event_id(source_file, 1)

@@ -21,7 +21,7 @@ When the shopper performed the event, as recorded in the source data. Never the 
 _Avoid_: Timestamp, arrival time
 
 **Event ID**:
-The stable identity of an event, derived from where it sits in the source files, so the same event always has the same ID however it enters the pipeline.
+The stable identity of an event, derived from where it sits in the source files (the file's original name and the event's CSV record number after the header), so the same event always has the same ID however it enters the pipeline.
 
 ## Sessions
 
