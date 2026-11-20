@@ -1,4 +1,4 @@
-.PHONY: help lint format test
+.PHONY: help lint format test dbt-vars
 
 help: ## List the available targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-10s %s\n", $$1, $$2}'
@@ -13,3 +13,6 @@ format: ## Fix lint issues and format the code
 
 test: ## Run the test suite
 	uv run pytest
+
+dbt-vars: ## Print config/pipeline.yaml as JSON for dbt --vars
+	@uv run --quiet python -m config.pipeline

@@ -1,0 +1,16 @@
+# Tunable values shared by dbt (batch) and Beam (streaming), so the two can never drift apart.
+# dbt reads this file through `make dbt-vars`; Beam loads it at startup. Do not repeat these
+# values in dbt or Beam code. Every key is required; durations are whole minutes of event time.
+
+# Sessions and lateness
+session_gap_minutes: 30           # the longest silence inside one session
+allowed_lateness_minutes: 60      # how far behind an event may arrive and still count
+
+# Streaming
+idle_cart_minutes: 15             # Cart add with no Purchase for this long fires an Idle cart signal
+early_result_event_count: 5       # an open session emits a provisional shopper type every N events
+
+# Shopper-type rules
+decisive_buyer_max_views: 5       # most views before buying for a Decisive buyer; more is a Researcher
+browser_min_views: 3              # fewest views for a Browser; fewer is a Bounce
+deal_hunter_share_below_reference_price: 0.5  # a Deal-hunter has more than this share of views below it
