@@ -126,3 +126,77 @@ def test_a_file_that_is_not_a_mapping_is_rejected(tmp_path: Path, content: str) 
 
     with pytest.raises(PipelineConfigError, match="must be a mapping of keys to values"):
         load_pipeline_config(path)
+
+
+def valid_yaml_lines() -> list[str]:
+    return [f"{key}: {value}" for key, value in valid_values().items()]
+
+
+def write_yaml(tmp_path: Path, lines: list[str]) -> Path:
+    path = tmp_path / "pipeline.yaml"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+def test_duplicate_key_is_rejected_naming_the_key(tmp_path: Path) -> None:
+    """Otherwise the last value would silently win over the one a reader sees first."""
+    path = write_yaml(tmp_path, [*valid_yaml_lines(), "session_gap_minutes: 45"])
+
+    with pytest.raises(PipelineConfigError) as excinfo:
+        load_pipeline_config(path)
+
+    assert excinfo.value.key == "session_gap_minutes"
+    assert "duplicate" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        pytest.param("15:00", id="sexagesimal"),
+        pytest.param("015", id="leading-zero"),
+        pytest.param("0x0f", id="hex"),
+        pytest.param("1_5", id="underscore"),
+    ],
+)
+def test_a_number_not_written_as_plain_digits_is_rejected(tmp_path: Path, text: str) -> None:
+    """YAML 1.1 would read 15:00 as 900 and 015 as 13, both plausible-looking durations."""
+    lines = [
+        f"idle_cart_minutes: {text}" if line.startswith("idle_cart_minutes:") else line
+        for line in valid_yaml_lines()
+    ]
+
+    with pytest.raises(PipelineConfigError) as excinfo:
+        load_pipeline_config(write_yaml(tmp_path, lines))
+
+    assert excinfo.value.key == "idle_cart_minutes"
+    assert "must be a whole number" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(("line", "key"), [("~: 5", "None"), ("1: 5", "1"), ("yes: 5", "True")])
+def test_a_key_that_is_not_text_is_rejected(tmp_path: Path, line: str, key: str) -> None:
+    path = write_yaml(tmp_path, [*valid_yaml_lines(), line])
+
+    with pytest.raises(PipelineConfigError) as excinfo:
+        load_pipeline_config(path)
+
+    assert excinfo.value.key == key
+    assert "must be text" in str(excinfo.value)
+
+
+def test_a_path_given_as_text_loads() -> None:
+    assert load_pipeline_config(str(PIPELINE_CONFIG_PATH)) == PipelineConfig(**valid_values())
+
+
+def test_make_dbt_vars_prints_only_json_when_run_from_another_directory(tmp_path: Path) -> None:
+    """`make -C` turns on directory printing, which would put 'Entering directory' in stdout."""
+    repo_root = Path(__file__).resolve().parent.parent
+
+    result = subprocess.run(
+        ["make", "-C", str(repo_root), "dbt-vars"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert json.loads(result.stdout) == valid_values()
