@@ -32,13 +32,18 @@ class PipelineConfigError(ValueError):
         self.key = key
 
 
-def _positive_int(key: str, value: object) -> int:
-    # bool is a subclass of int, so `true` would otherwise load as 1.
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise PipelineConfigError(key, f"{key!r} must be a whole number, got {value!r}")
-    if value < 1:
-        raise PipelineConfigError(key, f"{key!r} must be 1 or more, got {value!r}")
-    return value
+def _whole_number_at_least(minimum: int) -> Callable[[str, object], int]:
+    """A check that a YAML value is a whole number of `minimum` or more."""
+
+    def check(key: str, value: object) -> int:
+        # bool is a subclass of int, so `true` would otherwise load as 1.
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise PipelineConfigError(key, f"{key!r} must be a whole number, got {value!r}")
+        if value < minimum:
+            raise PipelineConfigError(key, f"{key!r} must be {minimum} or more, got {value!r}")
+        return value
+
+    return check
 
 
 def _share(key: str, value: object) -> float:
@@ -58,16 +63,28 @@ def _setting(validate: Callable[[str, object], int | float]) -> Any:
 class PipelineConfig:
     """The values in config/pipeline.yaml. Durations are whole minutes of event time."""
 
-    session_gap_minutes: int = _setting(_positive_int)
-    allowed_lateness_minutes: int = _setting(_positive_int)
-    idle_cart_minutes: int = _setting(_positive_int)
-    early_result_event_count: int = _setting(_positive_int)
-    decisive_buyer_max_views: int = _setting(_positive_int)
-    browser_min_views: int = _setting(_positive_int)
+    session_gap_minutes: int = _setting(_whole_number_at_least(1))
+    allowed_lateness_minutes: int = _setting(_whole_number_at_least(1))
+    idle_cart_minutes: int = _setting(_whole_number_at_least(1))
+    early_result_event_count: int = _setting(_whole_number_at_least(1))
+    decisive_buyer_max_views: int = _setting(_whole_number_at_least(0))
+    browser_min_views: int = _setting(_whole_number_at_least(1))
     deal_hunter_share_below_reference_price: float = _setting(_share)
 
 
 _YAML_INT_TAG = "tag:yaml.org,2002:int"
+
+
+def _decimal_only_int_resolvers() -> dict[str, list[tuple[str, re.Pattern[str]]]]:
+    """SafeLoader's implicit resolvers, with YAML 1.1's int rule narrowed to plain digits."""
+    resolvers = {
+        first_char: [(tag, regex) for tag, regex in rules if tag != _YAML_INT_TAG]
+        for first_char, rules in yaml.SafeLoader.yaml_implicit_resolvers.items()
+    }
+    decimal = re.compile(r"^(?:0|[-+]?[1-9][0-9]*)$")
+    for first_char in "-+0123456789":
+        resolvers.setdefault(first_char, []).append((_YAML_INT_TAG, decimal))
+    return resolvers
 
 
 class _StrictLoader(yaml.SafeLoader):
@@ -75,6 +92,8 @@ class _StrictLoader(yaml.SafeLoader):
 
     YAML 1.1 would read 15:00 as 900 and 015 as 13; here they stay strings and fail validation.
     """
+
+    yaml_implicit_resolvers = _decimal_only_int_resolvers()
 
     def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict[Any, Any]:
         seen: set[Any] = set()
@@ -84,15 +103,6 @@ class _StrictLoader(yaml.SafeLoader):
                 raise PipelineConfigError(str(key), f"duplicate key {key!r}")
             seen.add(key)
         return super().construct_mapping(node, deep=deep)
-
-
-_StrictLoader.yaml_implicit_resolvers = {
-    first_char: [(tag, regex) for tag, regex in resolvers if tag != _YAML_INT_TAG]
-    for first_char, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
-}
-_StrictLoader.add_implicit_resolver(
-    _YAML_INT_TAG, re.compile(r"^(?:0|[-+]?[1-9][0-9]*)$"), list("-+0123456789")
-)
 
 
 def load_pipeline_config(path: str | Path) -> PipelineConfig:

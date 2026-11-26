@@ -11,6 +11,7 @@ idle_cart_minutes: 15             # Cart add with no Purchase for this long fire
 early_result_event_count: 5       # an open session emits a provisional shopper type every N events
 
 # Shopper-type rules
-decisive_buyer_max_views: 5       # most views before buying for a Decisive buyer; more is a Researcher
-browser_min_views: 3              # fewest views for a Browser; fewer is a Bounce
+decisive_buyer_max_views: 5       # most views before buying for a Decisive buyer (0 allowed); more is a Researcher
+browser_min_views: 3              # fewest views for a Browser; fewer is a Bounce, so Bounce
+                                  # means 1 to (browser_min_views - 1) views: tuning this changes it
 deal_hunter_share_below_reference_price: 0.5  # a Deal-hunter has more than this share of views below it

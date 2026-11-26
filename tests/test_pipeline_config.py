@@ -14,6 +14,7 @@ from config.pipeline import (
     PipelineConfigError,
     load_pipeline_config,
 )
+from tests.paths import REPO_ROOT
 
 
 def valid_values() -> dict[str, Any]:
@@ -28,10 +29,14 @@ def valid_values() -> dict[str, Any]:
     }
 
 
-def write_config(tmp_path: Path, values: dict[str, Any]) -> Path:
+def write_yaml(tmp_path: Path, text: str) -> Path:
     path = tmp_path / "pipeline.yaml"
-    path.write_text(yaml.safe_dump(values), encoding="utf-8")
+    path.write_text(text, encoding="utf-8")
     return path
+
+
+def write_config(tmp_path: Path, values: dict[str, Any]) -> Path:
+    return write_yaml(tmp_path, yaml.safe_dump(values))
 
 
 def test_committed_config_loads_with_the_agreed_values() -> None:
@@ -98,11 +103,9 @@ def test_invalid_value_is_rejected_naming_the_key(
 
 def test_make_dbt_vars_prints_the_yaml_values_as_json() -> None:
     """Tests through make on purpose: this printed JSON is the contract dbt's --vars relies on."""
-    repo_root = Path(__file__).resolve().parent.parent
-
     result = subprocess.run(
         ["make", "dbt-vars"],
-        cwd=repo_root,
+        cwd=REPO_ROOT,
         capture_output=True,
         text=True,
         check=True,
@@ -121,8 +124,7 @@ def test_make_dbt_vars_prints_the_yaml_values_as_json() -> None:
     ],
 )
 def test_a_file_that_is_not_a_mapping_is_rejected(tmp_path: Path, content: str) -> None:
-    path = tmp_path / "pipeline.yaml"
-    path.write_text(content, encoding="utf-8")
+    path = write_yaml(tmp_path, content)
 
     with pytest.raises(PipelineConfigError, match="must be a mapping of keys to values"):
         load_pipeline_config(path)
@@ -132,15 +134,13 @@ def valid_yaml_lines() -> list[str]:
     return [f"{key}: {value}" for key, value in valid_values().items()]
 
 
-def write_yaml(tmp_path: Path, lines: list[str]) -> Path:
-    path = tmp_path / "pipeline.yaml"
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return path
+def yaml_text(lines: list[str]) -> str:
+    return "\n".join(lines) + "\n"
 
 
 def test_duplicate_key_is_rejected_naming_the_key(tmp_path: Path) -> None:
     """Otherwise the last value would silently win over the one a reader sees first."""
-    path = write_yaml(tmp_path, [*valid_yaml_lines(), "session_gap_minutes: 45"])
+    path = write_yaml(tmp_path, yaml_text([*valid_yaml_lines(), "session_gap_minutes: 45"]))
 
     with pytest.raises(PipelineConfigError) as excinfo:
         load_pipeline_config(path)
@@ -166,7 +166,7 @@ def test_a_number_not_written_as_plain_digits_is_rejected(tmp_path: Path, text: 
     ]
 
     with pytest.raises(PipelineConfigError) as excinfo:
-        load_pipeline_config(write_yaml(tmp_path, lines))
+        load_pipeline_config(write_yaml(tmp_path, yaml_text(lines)))
 
     assert excinfo.value.key == "idle_cart_minutes"
     assert "must be a whole number" in str(excinfo.value)
@@ -174,7 +174,7 @@ def test_a_number_not_written_as_plain_digits_is_rejected(tmp_path: Path, text: 
 
 @pytest.mark.parametrize(("line", "key"), [("~: 5", "None"), ("1: 5", "1"), ("yes: 5", "True")])
 def test_a_key_that_is_not_text_is_rejected(tmp_path: Path, line: str, key: str) -> None:
-    path = write_yaml(tmp_path, [*valid_yaml_lines(), line])
+    path = write_yaml(tmp_path, yaml_text([*valid_yaml_lines(), line]))
 
     with pytest.raises(PipelineConfigError) as excinfo:
         load_pipeline_config(path)
@@ -189,10 +189,8 @@ def test_a_path_given_as_text_loads() -> None:
 
 def test_make_dbt_vars_prints_only_json_when_run_from_another_directory(tmp_path: Path) -> None:
     """`make -C` turns on directory printing, which would put 'Entering directory' in stdout."""
-    repo_root = Path(__file__).resolve().parent.parent
-
     result = subprocess.run(
-        ["make", "-C", str(repo_root), "dbt-vars"],
+        ["make", "-C", str(REPO_ROOT), "dbt-vars"],
         cwd=tmp_path,
         capture_output=True,
         text=True,
@@ -200,3 +198,17 @@ def test_make_dbt_vars_prints_only_json_when_run_from_another_directory(tmp_path
     )
 
     assert json.loads(result.stdout) == valid_values()
+
+
+def test_decisive_buyer_max_views_may_be_zero(tmp_path: Path) -> None:
+    """0 is a valid tuning: a Decisive buyer then buys without viewing anything first."""
+    values = {**valid_values(), "decisive_buyer_max_views": 0}
+
+    assert load_pipeline_config(write_config(tmp_path, values)).decisive_buyer_max_views == 0
+
+
+def test_decisive_buyer_max_views_may_not_be_negative(tmp_path: Path) -> None:
+    values = {**valid_values(), "decisive_buyer_max_views": -1}
+
+    with pytest.raises(PipelineConfigError, match="must be 0 or more"):
+        load_pipeline_config(write_config(tmp_path, values))

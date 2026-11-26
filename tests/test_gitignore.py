@@ -1,11 +1,10 @@
 """Checks that local-only files never show up in git status."""
 
 import subprocess
-from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+from tests.paths import REPO_ROOT
 
 
 def is_ignored(path: str) -> bool:

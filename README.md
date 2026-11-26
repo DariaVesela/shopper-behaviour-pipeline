@@ -39,6 +39,30 @@ make test-integration   # tests against the running services
 make down               # stop; topics and their records are kept (make clean deletes them)
 ```
 
+### Example output
+
+The shared pipeline config, as the JSON that dbt receives through `--vars`:
+
+```console
+$ make dbt-vars
+{"session_gap_minutes": 30, "allowed_lateness_minutes": 60, "idle_cart_minutes": 15, "early_result_event_count": 5, "decisive_buyer_max_views": 5, "browser_min_views": 3, "deal_hunter_share_below_reference_price": 0.5}
+```
+
+An invalid event is rejected naming the bad field:
+
+```console
+$ uv run python -c "from schemas.event import validate_event; validate_event({'event_type': 'click'})"
+...
+schemas.event.InvalidEventError: invalid event: required field 'event_id' is missing
+```
+
+## Key design decisions
+
+- **Deterministic event IDs.** The dataset has no event ID, so each event's ID is a hash of its source file's name and its CSV record number (`schemas/event_id.py`). Replay and backfill therefore give the same event the same ID, and duplicates can be dropped by it anywhere in the pipeline. The recipe is fixed: changing it would give every stored event a new ID.
+- **One event schema.** `schemas/event.avsc` is the single definition of an event, used by the replayer, backfill, Pub/Sub, bronze and Beam. Events with a missing, mistyped or unknown field are rejected rather than loaded.
+- **One config file for batch and streaming.** Session gap, allowed lateness and the shopper-type thresholds live only in `config/pipeline.yaml`. Beam loads it and dbt receives it as `--vars`, so the two paths cannot drift apart. A YAML file rather than a Python constants module, because dbt cannot import Python.
+- **Kafka in KRaft mode, topics created explicitly.** One local broker with no ZooKeeper. Automatic topic creation is off, so a misspelt topic name fails instead of silently creating a new topic.
+
 ## Licence
 
 MIT. See [LICENSE](LICENSE).
