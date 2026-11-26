@@ -18,3 +18,21 @@ jobs:
         run: make lint
       - name: Test
         run: make test
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Integration tests
+        run: make test-integration
+      - name: Show service logs on failure
+        if: failure()
+        run: make logs
+      - name: Stop services
+        if: always()
+        run: make clean

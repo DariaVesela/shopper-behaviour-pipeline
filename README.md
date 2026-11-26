@@ -31,6 +31,14 @@ make lint test
 
 Each component has its own dependency group, installed only when needed (for example `uv sync --group replayer`). `make help` lists every target.
 
+Local services run in Docker (Docker Desktop or Docker Engine with Compose v2):
+
+```sh
+make up                 # Kafka on localhost:9092, with the events (6 partitions) and events-dlq topics
+make test-integration   # tests against the running services
+make down               # stop; topics and their records are kept (make clean deletes them)
+```
+
 ## Licence
 
 MIT. See [LICENSE](LICENSE).

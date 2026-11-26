@@ -1,0 +1,62 @@
+# Local services for the pipeline. Start with `make up`, stop with `make down`
+# (topics and their records survive `make down`; `make clean` deletes them).
+name: shopper-pipeline
+
+x-kafka-image: &kafka-image apache/kafka:3.9.1
+
+services:
+  kafka:
+    image: *kafka-image
+    # One broker in KRaft mode: it is its own controller, so there is no ZooKeeper.
+    environment:
+      CLUSTER_ID: JZ7KLYAhS3uRaeYo7X723w  # any fixed base64 UUID; kept fixed so the data volume stays valid
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # INTERNAL is for other containers (Kafka Connect, the exporter); HOST is for the
+      # replayer running on the host at localhost:9092.
+      KAFKA_LISTENERS: INTERNAL://:29092,CONTROLLER://:9093,HOST://:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      # Single broker, so every internal topic has one replica.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # Topics come only from kafka-init, so a misspelt topic name fails instead of
+      # silently creating a new topic.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka:29092 > /dev/null"]
+      interval: 5s
+      timeout: 20s
+      retries: 20
+      start_period: 15s
+
+  # One-shot: creates the topics, then exits. Safe to rerun because of --if-not-exists.
+  kafka-init:
+    image: *kafka-image
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        topics=/opt/kafka/bin/kafka-topics.sh
+        # events is keyed by user_id, so one shopper's events stay in order in one partition.
+        $$topics --bootstrap-server kafka:29092 --create --if-not-exists \
+          --topic events --partitions 6 --replication-factor 1
+        $$topics --bootstrap-server kafka:29092 --create --if-not-exists \
+          --topic events-dlq --partitions 1 --replication-factor 1
+    restart: "no"
+
+volumes:
+  kafka-data:
