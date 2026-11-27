@@ -1,0 +1,7 @@
+groups:
+  - name: kafka
+    rules:
+      # Records written per second to each topic, averaged over the last minute. A topic's
+      # offset rises by one for every record written to it, summed here over its partitions.
+      - record: topic:kafka_records_in:rate1m
+        expr: sum by (topic) (rate(kafka_topic_partition_current_offset[1m]))

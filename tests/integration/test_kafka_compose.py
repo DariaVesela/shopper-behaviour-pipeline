@@ -3,39 +3,13 @@
 import re
 import socket
 import struct
-import subprocess
 import uuid
 
 import pytest
 
-from tests.paths import REPO_ROOT
+from tests.integration.stack import TOPIC_PARTITIONS, compose, kafka_tool, run_or_fail
 
-pytestmark = pytest.mark.integration
-
-COMPOSE_FILE = REPO_ROOT / "docker" / "compose.yaml"
-TOPIC_PARTITIONS = {"events": 6, "events-dlq": 1}
-
-
-def run_or_fail(*command: str, stdin: str | None = None) -> str:
-    """Run `command` from the repo root and return its stdout; fail the test if it fails."""
-    result = subprocess.run(
-        command, cwd=REPO_ROOT, input=stdin, capture_output=True, text=True, check=False
-    )
-    assert result.returncode == 0, f"{' '.join(command)} failed:\n{result.stdout}{result.stderr}"
-    return result.stdout
-
-
-def compose(*args: str, stdin: str | None = None) -> str:
-    return run_or_fail("docker", "compose", "-f", str(COMPOSE_FILE), *args, stdin=stdin)
-
-
-def kafka_tool(tool: str, *args: str, stdin: str | None = None) -> str:
-    """Run one of Kafka's CLI tools inside the broker container, against its internal listener."""
-    return compose(
-        "exec", "-T", "kafka", f"/opt/kafka/bin/{tool}",
-        "--bootstrap-server", "kafka:29092", *args,
-        stdin=stdin,
-    )  # fmt: skip
+pytestmark = [pytest.mark.integration, pytest.mark.usefixtures("stack_running")]
 
 
 def partition_count(topic: str) -> int:
@@ -78,14 +52,6 @@ def _read_exactly(connection: socket.socket, size: int) -> bytes:
     return data
 
 
-@pytest.fixture(scope="module")
-def kafka_running() -> None:
-    """Start Kafka with `make up`. It is left running afterwards on purpose: local work may be
-    using it, and `make up` is idempotent. CI stops it with `make clean`."""
-    run_or_fail("make", "up")
-
-
-@pytest.mark.usefixtures("kafka_running")
 def test_make_up_brings_the_broker_up_healthy() -> None:
     container = compose("ps", "--quiet", "kafka").strip()
 
@@ -94,13 +60,11 @@ def test_make_up_brings_the_broker_up_healthy() -> None:
     assert health.strip() == "healthy"
 
 
-@pytest.mark.usefixtures("kafka_running")
 @pytest.mark.parametrize(("topic", "partitions"), TOPIC_PARTITIONS.items())
 def test_make_up_creates_the_topics(topic: str, partitions: int) -> None:
     assert partition_count(topic) == partitions
 
 
-@pytest.mark.usefixtures("kafka_running")
 def test_console_produce_and_consume_round_trip() -> None:
     """Uses a throwaway topic, so test records never reach the events topic Connect forwards."""
     topic = f"it-round-trip-{uuid.uuid4().hex[:8]}"
@@ -123,14 +87,12 @@ def test_console_produce_and_consume_round_trip() -> None:
     assert consumed.strip() == record
 
 
-@pytest.mark.usefixtures("kafka_running")
 def test_broker_tells_host_clients_to_use_localhost_9092() -> None:
     """A client on the host connects to whatever address the broker advertises, so a wrong
     advertised listener (e.g. kafka:9092) would break the replayer even with the port open."""
     assert advertised_brokers("localhost", 9092) == [("localhost", 9092)]
 
 
-@pytest.mark.usefixtures("kafka_running")
 def test_make_up_succeeds_again_with_the_topics_already_present() -> None:
     run_or_fail("make", "down")
     run_or_fail("make", "up")
@@ -138,7 +100,6 @@ def test_make_up_succeeds_again_with_the_topics_already_present() -> None:
     assert {topic: partition_count(topic) for topic in TOPIC_PARTITIONS} == TOPIC_PARTITIONS
 
 
-@pytest.mark.usefixtures("kafka_running")
 def test_make_up_succeeds_when_already_up() -> None:
     """`up --wait` used to fail at random once the one-shot kafka-init had exited."""
     for _ in range(3):

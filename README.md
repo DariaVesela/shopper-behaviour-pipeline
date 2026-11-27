@@ -35,9 +35,18 @@ Local services run in Docker (Docker Desktop or Docker Engine with Compose v2):
 
 ```sh
 make up                 # Kafka on localhost:9092, with the events (6 partitions) and events-dlq topics
+                        # and Prometheus on localhost:9090, scraping the Kafka exporter
 make test-integration   # tests against the running services
 make down               # stop; topics and their records are kept (make clean deletes them)
 ```
+
+Prometheus keeps a day of metrics. Its config is in `docker/prometheus/`; after changing it, run `docker compose -f docker/compose.yaml restart prometheus`. Useful queries:
+
+| Query | What it shows |
+| --- | --- |
+| `kafka_consumergroup_lag{topic="events"}` | How far each consumer group is behind, per partition |
+| `kafka_topic_partition_current_offset{topic="events"}` | The latest offset of each partition |
+| `topic:kafka_records_in:rate1m` | Records written per second to `events` and `events-dlq` |
 
 GCP resources are managed with Terraform (version in `infra/terraform/versions.tf`) in `infra/terraform/`. After the one-off bootstrap (a project with billing, `gcloud auth application-default login`, and a versioned bucket for Terraform state), copy `terraform.tfvars.example` and `backend.hcl.example` there without the `.example` suffix and fill them in. Both copies are gitignored.
 
@@ -84,6 +93,7 @@ schemas.event.InvalidEventError: invalid event: required field 'event_id' is mis
 - **Destroy keeps APIs and data.** `make tf-destroy` leaves the APIs on, since turning one off can break things outside this config, and refuses to delete a data bucket that still holds files.
 - **Service account keys never touch Terraform.** Terraform creates the accounts, but the keys are made by `make keys` with `gcloud`, so no private key is ever stored in Terraform state. Each account gets only the roles on the resources it uses, added by the change that creates each resource; BigQuery Job User is the one project-wide role, for Grafana and Beam, since BigQuery has nothing narrower.
 - **Kafka in KRaft mode, topics created explicitly.** One local broker with no ZooKeeper. Automatic topic creation is off, so a misspelt topic name fails instead of silently creating a new topic.
+- **Kafka metrics through an exporter.** A Kafka exporter turns topic offsets and consumer-group lag into Prometheus metrics, limited to `events` and `events-dlq`, so Kafka's internal topics add no noise. The record rate is a Prometheus recording rule over the offsets, so dashboards don't each repeat the query.
 
 ## Licence
 

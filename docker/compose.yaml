@@ -1,5 +1,5 @@
-# Local services for the pipeline. Start with `make up`, stop with `make down`
-# (topics and their records survive `make down`; `make clean` deletes them).
+# Local services for the pipeline: Kafka, its exporter and Prometheus. Start with `make up`,
+# stop with `make down` (topics, records and metrics survive it; `make clean` deletes them).
 name: shopper-pipeline
 
 x-kafka-image: &kafka-image apache/kafka:3.9.1
@@ -58,5 +58,43 @@ services:
           --topic events-dlq --partitions 1 --replication-factor 1
     restart: "no"
 
+  # Turns Kafka's topic offsets and consumer-group lag into Prometheus metrics.
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.11.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command:
+      - --kafka.server=kafka:29092
+      # Only the pipeline's topics; Kafka's internal ones would only add noise.
+      - --topic.filter=^events(-dlq)?$$
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9308/metrics"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  prometheus:
+    image: prom/prometheus:v3.16.0
+    depends_on:
+      kafka-exporter:
+        condition: service_healthy
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      # Only today's run matters locally; a day keeps the volume small.
+      - --storage.tsdb.retention.time=1d
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9090/-/ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
 volumes:
   kafka-data:
+  prometheus-data:

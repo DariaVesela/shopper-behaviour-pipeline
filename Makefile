@@ -28,11 +28,11 @@ COMPOSE := docker compose -f docker/compose.yaml
 
 # Wait only for the long-running services, then run the one-shot topic creation on its own:
 # `up --wait` on everything fails at random once kafka-init has exited.
-up: ## Start local Kafka and create its topics; waits until the broker is healthy
-	$(COMPOSE) up --detach --wait kafka
+up: ## Start Kafka, its topics, the exporter and Prometheus; waits until all are healthy
+	$(COMPOSE) up --detach --wait kafka kafka-exporter prometheus
 	$(COMPOSE) run --rm kafka-init
 
-down: ## Stop local services, keeping topics and their records
+down: ## Stop local services, keeping topics, their records and metrics
 	$(COMPOSE) down
 
 logs: ## Show the local services' logs
