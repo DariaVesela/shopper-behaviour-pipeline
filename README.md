@@ -48,6 +48,16 @@ make tf-apply     # enables the APIs, creates the data bucket and the monthly bu
 make tf-destroy   # removes them again; refuses while the data bucket holds files
 ```
 
+Each component (Kafka Connect, Grafana, Beam) runs as its own service account. `make keys` writes their key files to the gitignored `secrets/`, readable only by you, and leaves existing ones alone; delete a file to have its key made again. Your own scripts use your `gcloud` login instead.
+
+```console
+$ make keys
+...
+created secrets/beam.json
+created secrets/grafana.json
+created secrets/kafka-connect.json
+```
+
 ### Example output
 
 The shared pipeline config, as the JSON that dbt receives through `--vars`:
@@ -72,6 +82,7 @@ schemas.event.InvalidEventError: invalid event: required field 'event_id' is mis
 - **One config file for batch and streaming.** Session gap, allowed lateness and the shopper-type thresholds live only in `config/pipeline.yaml`. Beam loads it and dbt receives it as `--vars`, so the two paths cannot drift apart. A YAML file rather than a Python constants module, because dbt cannot import Python.
 - **Budget in the billing account's currency.** The monthly budget is 10 units with alerts at 50%, 90% and 100%. The Budgets API rejects any currency other than the billing account's own, so Terraform leaves it unset rather than hard-coding dollars.
 - **Destroy keeps APIs and data.** `make tf-destroy` leaves the APIs on, since turning one off can break things outside this config, and refuses to delete a data bucket that still holds files.
+- **Service account keys never touch Terraform.** Terraform creates the accounts, but the keys are made by `make keys` with `gcloud`, so no private key is ever stored in Terraform state. Each account gets only the roles on the resources it uses, added by the change that creates each resource; BigQuery Job User is the one project-wide role, for Grafana and Beam, since BigQuery has nothing narrower.
 - **Kafka in KRaft mode, topics created explicitly.** One local broker with no ZooKeeper. Automatic topic creation is off, so a misspelt topic name fails instead of silently creating a new topic.
 
 ## Licence

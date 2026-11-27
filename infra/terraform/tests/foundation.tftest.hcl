@@ -1,6 +1,8 @@
-# Plan-only tests against a mocked Google provider: no credentials or network needed.
+# Tests against a mocked Google provider: no credentials or network needed.
 
-mock_provider "google" {}
+mock_provider "google" {
+  source = "./tests/mocks"
+}
 
 variables {
   project_id      = "test-project"

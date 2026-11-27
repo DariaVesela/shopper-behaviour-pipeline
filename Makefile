@@ -1,5 +1,5 @@
 .PHONY: help lint format test test-integration dbt-vars up down logs clean \
-	tf-init tf-check tf-plan tf-apply tf-destroy
+	tf-init tf-check tf-plan tf-apply tf-destroy keys
 
 # make -C and recursive make print "Entering directory" to stdout, which would corrupt dbt-vars.
 MAKEFLAGS += --no-print-directory
@@ -61,3 +61,6 @@ tf-apply: tf-init ## Create or update the GCP resources (asks before changing an
 
 tf-destroy: tf-init ## Delete the GCP resources; refuses while the data bucket holds files
 	$(TF) destroy
+
+keys: tf-init ## Write a key file per service account to secrets/ (600); keeps existing ones
+	uv run python -m scripts.service_account_keys
