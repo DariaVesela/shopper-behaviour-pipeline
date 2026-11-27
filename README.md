@@ -39,6 +39,15 @@ make test-integration   # tests against the running services
 make down               # stop; topics and their records are kept (make clean deletes them)
 ```
 
+GCP resources are managed with Terraform (version in `infra/terraform/versions.tf`) in `infra/terraform/`. After the one-off bootstrap (a project with billing, `gcloud auth application-default login`, and a versioned bucket for Terraform state), copy `terraform.tfvars.example` and `backend.hcl.example` there without the `.example` suffix and fill them in. Both copies are gitignored.
+
+```sh
+make tf-check     # formatting, validation and plan tests against a mocked provider; no credentials
+make tf-plan      # what would change in GCP
+make tf-apply     # enables the APIs, creates the data bucket and the monthly budget
+make tf-destroy   # removes them again; refuses while the data bucket holds files
+```
+
 ### Example output
 
 The shared pipeline config, as the JSON that dbt receives through `--vars`:
@@ -61,6 +70,8 @@ schemas.event.InvalidEventError: invalid event: required field 'event_id' is mis
 - **Deterministic event IDs.** The dataset has no event ID, so each event's ID is a hash of its source file's name and its CSV record number (`schemas/event_id.py`). Replay and backfill therefore give the same event the same ID, and duplicates can be dropped by it anywhere in the pipeline. The recipe is fixed: changing it would give every stored event a new ID.
 - **One event schema.** `schemas/event.avsc` is the single definition of an event, used by the replayer, backfill, Pub/Sub, bronze and Beam. Events with a missing, mistyped or unknown field are rejected rather than loaded.
 - **One config file for batch and streaming.** Session gap, allowed lateness and the shopper-type thresholds live only in `config/pipeline.yaml`. Beam loads it and dbt receives it as `--vars`, so the two paths cannot drift apart. A YAML file rather than a Python constants module, because dbt cannot import Python.
+- **Budget in the billing account's currency.** The monthly budget is 10 units with alerts at 50%, 90% and 100%. The Budgets API rejects any currency other than the billing account's own, so Terraform leaves it unset rather than hard-coding dollars.
+- **Destroy keeps APIs and data.** `make tf-destroy` leaves the APIs on, since turning one off can break things outside this config, and refuses to delete a data bucket that still holds files.
 - **Kafka in KRaft mode, topics created explicitly.** One local broker with no ZooKeeper. Automatic topic creation is off, so a misspelt topic name fails instead of silently creating a new topic.
 
 ## Licence

@@ -32,6 +32,7 @@ def is_ignored(path: str) -> bool:
         "infra/terraform/.terraform/providers.lock",
         "infra/terraform/terraform.tfstate",
         "infra/terraform/terraform.tfstate.backup",
+        "infra/terraform/backend.hcl",
         "dbt/target/manifest.json",
         "dbt/logs/dbt.log",
         ".env",
@@ -48,6 +49,8 @@ def test_local_only_files_are_ignored(path: str) -> None:
     "path",
     [
         "infra/terraform/terraform.tfvars.example",
+        "infra/terraform/backend.hcl.example",
+        "infra/terraform/.terraform.lock.hcl",
         "infra/terraform/main.tf",
         "schemas/event.avsc",
         "tests/data/sample_events.csv",

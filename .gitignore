@@ -5,6 +5,7 @@
 
 # Terraform
 *.tfvars
+infra/terraform/backend.hcl
 .terraform/
 *.tfstate
 *.tfstate.*

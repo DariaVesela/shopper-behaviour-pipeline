@@ -1,4 +1,5 @@
-.PHONY: help lint format test test-integration dbt-vars up down logs clean
+.PHONY: help lint format test test-integration dbt-vars up down logs clean \
+	tf-init tf-check tf-plan tf-apply tf-destroy
 
 # make -C and recursive make print "Entering directory" to stdout, which would corrupt dbt-vars.
 MAKEFLAGS += --no-print-directory
@@ -39,3 +40,24 @@ logs: ## Show the local services' logs
 
 clean: ## Stop local services and delete their data
 	$(COMPOSE) down --volumes
+
+TF := terraform -chdir=infra/terraform
+
+# Needs infra/terraform/backend.hcl and terraform.tfvars; copy them from the .example files.
+tf-init: ## Initialise Terraform with the remote state bucket
+	$(TF) init -input=false -backend-config=backend.hcl
+
+tf-check: ## Check Terraform formatting, validity and the plan tests (no credentials needed)
+	$(TF) init -input=false -backend=false
+	$(TF) fmt -check -recursive
+	$(TF) validate
+	$(TF) test
+
+tf-plan: tf-init ## Show what Terraform would change in GCP
+	$(TF) plan
+
+tf-apply: tf-init ## Create or update the GCP resources (asks before changing anything)
+	$(TF) apply
+
+tf-destroy: tf-init ## Delete the GCP resources; refuses while the data bucket holds files
+	$(TF) destroy

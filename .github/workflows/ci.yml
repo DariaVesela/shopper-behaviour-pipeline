@@ -19,6 +19,16 @@ jobs:
       - name: Test
         run: make test
 
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.3
+      - name: Format, validate and plan tests
+        run: make tf-check
+
   integration:
     runs-on: ubuntu-latest
     steps:

@@ -1,0 +1,2 @@
+# Copy to backend.hcl (gitignored): the bucket made by hand in the GCP bootstrap, versioning on.
+bucket = "your-project-id-tfstate"
