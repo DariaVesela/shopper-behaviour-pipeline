@@ -75,3 +75,12 @@ def test_a_failed_key_leaves_no_file_so_the_next_run_retries(tmp_path: Path) -> 
         tmp_path / "kafka-connect.json",
         tmp_path / "beam.json",
     ]
+
+
+def test_an_existing_secrets_directory_is_made_owner_only(tmp_path: Path) -> None:
+    secrets_dir = tmp_path / "secrets"
+    secrets_dir.mkdir(mode=0o755)
+
+    create_missing_keys(EMAILS, secrets_dir, FakeGcloud().create_key)
+
+    assert stat.S_IMODE(secrets_dir.stat().st_mode) == 0o700

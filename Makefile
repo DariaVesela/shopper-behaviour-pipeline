@@ -47,7 +47,7 @@ TF := terraform -chdir=infra/terraform
 tf-init: ## Initialise Terraform with the remote state bucket
 	$(TF) init -input=false -backend-config=backend.hcl
 
-tf-check: ## Check Terraform formatting, validity and the plan tests (no credentials needed)
+tf-check: ## Check Terraform formatting, validity and the mocked Terraform tests (no credentials)
 	$(TF) init -input=false -backend=false
 	$(TF) fmt -check -recursive
 	$(TF) validate

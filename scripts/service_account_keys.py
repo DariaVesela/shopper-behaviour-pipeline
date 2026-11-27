@@ -25,6 +25,7 @@ def create_missing_keys(
     previous_umask = os.umask(0o077)
     try:
         secrets_dir.mkdir(mode=0o700, exist_ok=True)
+        secrets_dir.chmod(0o700)  # mkdir leaves an existing directory as it was
         for component, email in emails.items():
             key_file = secrets_dir / f"{component}.json"
             if key_file.exists():
@@ -48,7 +49,9 @@ def terraform_service_account_emails() -> dict[str, str]:
     result = subprocess.run(
         ["terraform", f"-chdir={REPO_ROOT / 'infra' / 'terraform'}", "output", "-json",
          "service_account_emails"],
-        capture_output=True, text=True, check=True,
+        # Only stdout is captured, so Terraform's own error (e.g. no such output before the
+        # first tf-apply) still reaches the terminal.
+        stdout=subprocess.PIPE, text=True, check=True,
     )  # fmt: skip
     return json.loads(result.stdout)
 

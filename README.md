@@ -48,7 +48,7 @@ make tf-apply     # enables the APIs, creates the data bucket and the monthly bu
 make tf-destroy   # removes them again; refuses while the data bucket holds files
 ```
 
-Each component (Kafka Connect, Grafana, Beam) runs as its own service account. `make keys` writes their key files to the gitignored `secrets/`, readable only by you, and leaves existing ones alone; delete a file to have its key made again. Your own scripts use your `gcloud` login instead.
+Each component (Kafka Connect, Grafana, Beam) runs as its own service account. `make keys` writes their key files to the gitignored `secrets/`, readable only by you, and leaves existing ones alone. To replace a key, revoke it first, since deleting the file alone leaves the old key valid: `gcloud iam service-accounts keys delete <private_key_id from the file> --iam-account=<client_email from the file>`, then delete the file and run `make keys`. Your own scripts use your `gcloud` login instead.
 
 ```console
 $ make keys
