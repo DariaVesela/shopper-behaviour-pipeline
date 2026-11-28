@@ -3,5 +3,7 @@ groups:
     rules:
       # Records written per second to each topic, averaged over the last minute. A topic's
       # offset rises by one for every record written to it, summed here over its partitions.
+      # The offset is a gauge, so Prometheus notes that rate() may not suit it, but an offset
+      # only ever rises; the drop after `make clean` is treated like a counter reset.
       - record: topic:kafka_records_in:rate1m
         expr: sum by (topic) (rate(kafka_topic_partition_current_offset[1m]))

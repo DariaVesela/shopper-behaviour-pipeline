@@ -90,12 +90,17 @@ def test_consumer_group_lag_is_recorded_per_events_partition(consumer_group_on_e
 
 
 def test_record_rate_is_recorded_per_topic() -> None:
-    """Records written per second to each topic, for the pipeline-health row of the dashboard."""
+    """Records written per second to each topic, for the pipeline-health row of the dashboard.
+
+    Only the series and that each is a non-negative number are checked: writing records here
+    would mix test records into the pipeline's topics. The rate rising is checked once the
+    replayer writes real records.
+    """
+    promql = "topic:kafka_records_in:rate1m"
     expected = dict.fromkeys(TOPIC_PARTITIONS, 1)
 
-    rate = wait_for(lambda: series_per_topic("topic:kafka_records_in:rate1m"), expected)
-
-    assert rate == expected
+    assert wait_for(lambda: series_per_topic(promql), expected) == expected
+    assert all(float(series["value"][1]) >= 0 for series in query(promql))
 
 
 def test_the_prometheus_config_and_rules_are_valid() -> None:

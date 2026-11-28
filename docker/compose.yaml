@@ -68,8 +68,11 @@ services:
       - --kafka.server=kafka:29092
       # Only the pipeline's topics; Kafka's internal ones would only add noise.
       - --topic.filter=^events(-dlq)?$$
+      # The exporter can start before kafka-init creates the topics; look for them every 5s
+      # rather than the default 30s.
+      - --refresh.metadata=5s
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9308/metrics"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9308/healthz"]
       interval: 5s
       timeout: 5s
       retries: 20
